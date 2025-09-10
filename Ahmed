@@ -1,0 +1,162 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>آلة حاسبة بسيطة</title>
+  <style>
+    :root{
+      --bg:#0f1724; /* dark navy */
+      --panel:#0b1220;
+      --accent:#06b6d4; /* teal */
+      --btn:#111827;
+      --btn-light:#1f2937;
+      --text:#e6eef8;
+      --muted:#94a3b8;
+    }
+    *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071024 0%, #071226 100%);color:var(--text);display:flex;align-items:center;justify-content:center;padding:20px}
+    .calculator{width:360px;max-width:100%;background:linear-gradient(180deg,var(--panel),#081224);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(2,6,23,.7)}
+    .screen{background:transparent;border-radius:10px;padding:12px 14px;text-align:right;min-height:86px;display:flex;flex-direction:column;justify-content:center}
+    .history{color:var(--muted);font-size:14px;min-height:18px;word-break:break-all}
+    .output{font-size:28px;line-height:1.05;font-weight:600}.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+button{border:0;border-radius:12px;padding:18px;font-size:18px;cursor:pointer;background:var(--btn);color:var(--text);box-shadow:0 6px 12px rgba(2,6,23,.6)}
+button:active{transform:translateY(1px)}
+.op{background:linear-gradient(180deg,var(--btn-light),#0b1320)}
+.accent{background:linear-gradient(180deg,var(--accent),#0596a8);color:#02121a}
+.wide{grid-column:span 2}
+.zero{grid-column:span 2}
+
+.controls{display:flex;gap:8px;margin-bottom:8px}
+.small{padding:8px 10px;font-size:13px;border-radius:8px}
+
+/* responsive */
+@media (max-width:420px){.calculator{padding:12px;border-radius:12px}.screen{min-height:72px}.output{font-size:22px}.keys button{padding:14px;font-size:16px}}
+
+  </style>
+</head>
+<body>
+  <div class="calculator" role="application" aria-label="آلة حاسبة">
+    <div class="screen" id="screen">
+      <div class="history" id="history">&nbsp;</div>
+      <div class="output" id="output">0</div>
+    </div><div class="controls">
+  <button class="small" id="clear">مسح</button>
+  <button class="small" id="back">←</button>
+  <button class="small" id="percent">%</button>
+  <button class="small" id="neg">±</button>
+</div>
+
+<div class="keys" id="keys">
+  <button class="op" data-key="/">÷</button>
+  <button class="op" data-key="*">×</button>
+  <button class="op" data-key="-">−</button>
+  <button class="op" data-key="+">+</button>
+
+  <button data-key="7">7</button>
+  <button data-key="8">8</button>
+  <button data-key="9">9</button>
+  <button class="op" data-key="(">(</button>
+
+  <button data-key="4">4</button>
+  <button data-key="5">5</button>
+  <button data-key="6">6</button>
+  <button class="op" data-key=")">)</button>
+
+  <button data-key="1">1</button>
+  <button data-key="2">2</button>
+  <button data-key="3">3</button>
+  <button class="op accent" id="equals">=</button>
+
+  <button class="zero" data-key="0">0</button>
+  <button data-key=".">.</button>
+</div>
+
+  </div>  <script>
+    /* Calculator logic */
+    const outputEl = document.getElementById('output');
+    const historyEl = document.getElementById('history');
+    const keys = document.getElementById('keys');
+    const clearBtn = document.getElementById('clear');
+    const backBtn = document.getElementById('back');
+    const percentBtn = document.getElementById('percent');
+    const negBtn = document.getElementById('neg');
+    const equalsBtn = document.getElementById('equals');
+
+    let expression = '';
+    let lastResult = null;
+
+    function updateScreen(){
+      historyEl.textContent = expression || '\u00A0';
+      outputEl.textContent = expression ? expression : '0';
+    }
+
+    function safeEval(expr){
+      // allow only digits, operators, parentheses and dots
+      if(!/^[-+*\/0-9().%\s]+$/.test(expr)) throw new Error('حروف غير مسموح بها');
+      // replace percent signs by /100 (e.g. "50%" -> "(50/100)") carefully
+      expr = expr.replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+      // evaluate using Function
+      return Function('return (' + expr + ')')();
+    }
+
+    keys.addEventListener('click', e=>{
+      const btn = e.target.closest('button');
+      if(!btn) return;
+      const key = btn.dataset.key;
+      if(!key) return;
+      // append key
+      expression += key;
+      updateScreen();
+    });
+
+    clearBtn.addEventListener('click', ()=>{ expression = ''; updateScreen(); lastResult = null; });
+
+    backBtn.addEventListener('click', ()=>{ expression = expression.slice(0,-1); updateScreen(); });
+
+    percentBtn.addEventListener('click', ()=>{
+      // try to convert last number to percent
+      // find last number in expression
+      const m = expression.match(/(\d+(?:\.\d+)?)$/);
+      if(m){ expression = expression.slice(0, -m[0].length) + '(' + m[0] + '/100)'; updateScreen(); }
+    });
+
+    negBtn.addEventListener('click', ()=>{
+      // toggle sign of last number or wrap whole expression
+      const m = expression.match(/(\d+(?:\.\d+)?)$/);
+      if(m){ expression = expression.slice(0, -m[0].length) + '(-' + m[0] + ')'; }
+      else if(expression){ expression = '(-1)*(' + expression + ')'; }
+      updateScreen();
+    });
+
+    equalsBtn.addEventListener('click', ()=>{ compute(); });
+
+    function compute(){
+      if(!expression) return;
+      try{
+        const result = safeEval(expression.replace(/×/g,'*').replace(/÷/g,'/'));
+        lastResult = result;
+        historyEl.textContent = expression + ' =';
+        outputEl.textContent = String(result);
+        expression = String(result);
+      }catch(err){
+        outputEl.textContent = 'خطأ';
+        console.error(err);
+      }
+    }
+
+    // keyboard support (latin and numpad): map keys to expression
+    window.addEventListener('keydown', e=>{
+      if(e.key === 'Enter') { e.preventDefault(); compute(); return; }
+      if(e.key === 'Backspace'){ expression = expression.slice(0,-1); updateScreen(); return; }
+      if(e.key === 'Escape'){ expression = ''; updateScreen(); return; }
+      if(/^[0-9+\-*/().%]$/.test(e.key)){
+        expression += e.key; updateScreen();
+      }
+      if(e.key === '*') { expression += '*'; updateScreen(); }
+      if(e.key === '/') { expression += '/'; updateScreen(); }
+    });
+
+    // initial
+    updateScreen();
+  </script></body>
+</html>
